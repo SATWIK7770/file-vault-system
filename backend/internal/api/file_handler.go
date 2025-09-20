@@ -59,14 +59,12 @@ func (h *FileHandler) Upload(c *gin.Context) {
 	}
 	hash := hex.EncodeToString(hasher.Sum(nil))
 
-	// save metadata + move file in service layer
 	savedFile, err := h.fileService.SaveFile(userID, file, storagePath, hash, time.Now())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db save failed"})
 		return
 	}
 
-	// finally save to disk
 	if err := c.SaveUploadedFile(file, storagePath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file"})
 		return
@@ -91,11 +89,10 @@ func (h *FileHandler) ListFiles(c *gin.Context) {
 
 // GET /api/files/:id/download
 func (h *FileHandler) DownloadFile(c *gin.Context) {
-	// 1. Get file ID from URL
+
 	userID := c.GetUint("userID")
 	fileIDstr := c.Param("id")
 
-    // Convert string -> uint
     fileID64, err := strconv.ParseUint(fileIDstr, 10, 64)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file ID"})
@@ -103,19 +100,16 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
     }
     fileID := uint(fileID64)
 
-	// 2. Find file in DB
 	file, err := h.fileRepo.GetFileForDownload(userID , fileID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
 		return
 	}
 
-	// 3. Set headers so browser downloads instead of displaying
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Disposition", "attachment; filename="+filepath.Base(file.Filename))
 	c.Header("Content-Type", "application/octet-stream")
 
-	// 4. Serve the file
 	c.File(file.StoragePath)
 }
 
