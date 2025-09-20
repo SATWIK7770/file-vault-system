@@ -33,7 +33,7 @@ func main() {
 	//File setup
 	fileRepo := repository.NewFileRepository(conn)
 	fileService := service.NewFileService(fileRepo)
-	fileHandler := api.NewFileHandler(fileService)
+	fileHandler := api.NewFileHandler(fileService , fileRepo)
 
 	r := gin.Default()
 
@@ -62,7 +62,7 @@ func main() {
 			
 			protected.POST("/upload", fileHandler.Upload)
 			protected.GET("/files", fileHandler.ListFiles)
-			protected.GET("/files/:id/download", fileHandler.Download)
+			protected.GET("/files/:id/download", fileHandler.DownloadFile)
 		}
 	}
 

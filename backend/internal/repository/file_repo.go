@@ -26,6 +26,16 @@ func (r *FileRepository) GetFilesByUser(userID uint) ([]models.File, error) {
 	return files, nil
 }
 
+func (r *FileRepository) GetFileForDownload(userID uint, fileID uint) (*models.File, error) {
+	var file models.File
+	if err := r.db.Where("id = ? AND user_id = ?", fileID, userID).First(&file).Error; err != nil {
+		return nil, err
+	}
+	return &file, nil
+}
+
+
+
 func (r *FileRepository) Delete(id uint, userID uint) error {
 	return r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.File{}).Error
 }

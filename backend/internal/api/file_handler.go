@@ -2,12 +2,13 @@ package api
 
 import (
 	"backend/internal/service"
+	"backend/internal/repository"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
-	// "strconv"
+	"strconv"
 	"time"
 	"path/filepath"
 
@@ -16,10 +17,14 @@ import (
 
 type FileHandler struct {
 	fileService *service.FileService
+	fileRepo *repository.FileRepository
 }
 
-func NewFileHandler(fs *service.FileService) *FileHandler {
-	return &FileHandler{fileService: fs}
+func NewFileHandler(fs *service.FileService, fr *repository.FileRepository) *FileHandler {
+    return &FileHandler{
+        fileService: fs,
+        fileRepo:    fr,
+    }
 }
 
 // POST /api/upload
@@ -87,10 +92,19 @@ func (h *FileHandler) ListFiles(c *gin.Context) {
 // GET /api/files/:id/download
 func (h *FileHandler) DownloadFile(c *gin.Context) {
 	// 1. Get file ID from URL
-	id := c.Param("id")
+	userID := c.GetUint("userID")
+	fileIDstr := c.Param("id")
+
+    // Convert string -> uint
+    fileID64, err := strconv.ParseUint(fileIDstr, 10, 64)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file ID"})
+        return
+    }
+    fileID := uint(fileID64)
 
 	// 2. Find file in DB
-	file, err := h.fileRepo.GetByID(id)
+	file, err := h.fileRepo.GetFileForDownload(userID , fileID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
 		return
