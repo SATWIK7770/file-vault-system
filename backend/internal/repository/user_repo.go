@@ -40,3 +40,15 @@ func (r *UserRepository) GetByID(id uint) (*models.User, error) {
 	}
 	return &user, nil
 }
+
+func (r *UserRepository) IncrementExpectedStorage(userID uint, size int64) error {
+    return r.db.Model(&models.User{}).
+        Where("id = ?", userID).
+        Update("expected_storage", gorm.Expr("expected_storage + ?", size)).Error
+}
+
+func (r *UserRepository) IncrementActualStorage(userID uint, size int64) error {
+    return r.db.Model(&models.User{}).
+        Where("id = ?", userID).
+        Update("actual_storage", gorm.Expr("actual_storage + ?", size)).Error
+}

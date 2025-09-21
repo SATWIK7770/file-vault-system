@@ -30,10 +30,18 @@ func main() {
 	authService := service.NewAuthService(userRepo)
 	authHandler := api.NewAuthHandler(authService)
 
+	fileConfig := service.FileConfig{
+    MaxFileSize:  10 * 1024 * 1024, // 10MB limit
+    UploadDir:    "uploads",         // Directory to store files
+    AllowedTypes: []string{},	     // Optional: restrict file types
+	}
+
+
 	//File setup
+	userFileRepo := repository.NewUserFileRepository(conn)
 	fileRepo := repository.NewFileRepository(conn)
-	fileService := service.NewFileService(fileRepo)
-	fileHandler := api.NewFileHandler(fileService , fileRepo)
+	fileService := service.NewFileService(fileRepo, userFileRepo, userRepo, fileConfig)
+	fileHandler := api.NewFileHandler(fileService)
 
 	r := gin.Default()
 
@@ -63,6 +71,7 @@ func main() {
 			protected.POST("/upload", fileHandler.Upload)
 			protected.GET("/files", fileHandler.ListFiles)
 			protected.GET("/files/:id/download", fileHandler.DownloadFile)
+			protected.POST("/files/:id/delete", fileHandler.DeleteFile)
 		}
 	}
 

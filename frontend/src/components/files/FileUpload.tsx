@@ -13,9 +13,12 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
   const [err, setErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  
   const addFiles = (files: File[]) => {
     setSelectedFiles((prev) => [...prev, ...files]);
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Trigger actual upload on button click
@@ -32,7 +35,7 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
       // Reset after upload
       setSelectedFiles([]);
       if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+        fileInputRef.current.value = ""; // ✅ clears file input
       }
     } catch (e: any) {
       setErr(e.message || "Upload failed");
@@ -52,6 +55,7 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       addFiles(Array.from(e.target.files));
+      e.target.value = ""; // ✅ allows reselecting same file
     }
   };
 
@@ -61,7 +65,8 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
 
       <div
         {...getRootProps()}
-        className="border-2 border-dashed border-gray-400  p-12 min-h-[200px] flex items-center justify-center text-lg text-gray-600 rounded-xl cursor-pointer mb-4">
+        className="border-2 border-dashed border-gray-400 p-12 min-h-[200px] flex items-center justify-center text-lg text-gray-600 rounded-xl cursor-pointer mb-4"
+      >
         <input {...getInputProps()} />
         {isDragActive ? <p>Drop files here...</p> : <p>Drag & drop files here</p>}
       </div>
@@ -71,9 +76,20 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
 
       {/* Show selected files */}
       {selectedFiles.length > 0 && (
-        <ul className="mt-2">
+        <ul className="mt-2 space-y-1">
           {selectedFiles.map((f, idx) => (
-            <li key={idx}>{f.name}</li>
+            <li
+              key={idx}
+              className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded"
+            >
+              <span className="truncate">{f.name}</span>
+              <button
+                onClick={() => removeFile(idx)}
+                className="ml-2 text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </li>
           ))}
         </ul>
       )}

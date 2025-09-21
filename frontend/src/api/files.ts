@@ -5,11 +5,12 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8080"
 import { getJSON, postJSON } from "./index";
 
 export type FileMeta = {
-  id: number;
-  filename: string;
-  size: number;          // in bytes
-  uploaded_at: string;   // ISO timestamp from backend
+  id: number;        // user_files.id (used for delete)
+  file_id: number;   // files.id (used for download)
+  filename: string;  // user_files.file_name (shown to user)
 };
+
+
 
 // list files
 export async function listFiles(): Promise<{ files: FileMeta[] }> {

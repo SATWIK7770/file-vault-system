@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ---- refresh user from backend ----
+  
   const refresh = async () => {
     try {
       const data = await authApi.apiMe();

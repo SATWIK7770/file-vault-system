@@ -13,7 +13,7 @@ async function parseJSON(response: Response) {
 export async function postJSON(path: string, body?: unknown) {
   const opts: RequestInit = {
     method: "POST",
-    credentials: "include", // important for httpOnly cookie auth
+    credentials: "include", 
   };
 
   // ✅ Only add headers/body if body is provided

@@ -4,6 +4,7 @@ import (
 	"backend/internal/service"
 	"net/http"
 	"os"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +29,8 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Store userID in context so handlers can use it
 		c.Set("userID", uint(userID))
+
+		fmt.Printf("DEBUG: File:%d", userID)
 		c.Next()
 	}
 }
