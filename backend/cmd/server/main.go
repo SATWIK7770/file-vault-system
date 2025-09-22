@@ -49,7 +49,7 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{frontendOrigin}, 
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowHeaders:     []string{"Content-Type"},
+		AllowHeaders:     []string{"Content-Type" ,"Authorization"},
 		AllowCredentials: true, 
 	}))
 
@@ -74,6 +74,7 @@ func main() {
 			protected.GET("/files/:id/download", fileHandler.DownloadFile)
 			protected.POST("/files/:id/delete", fileHandler.DeleteFile)
 			protected.PATCH("/files/:id/visibility", fileHandler.ChangeVisibility)
+			protected.GET("/storage-stats", fileHandler.GetStorageStats)
 		}
 	}
 

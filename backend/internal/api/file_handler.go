@@ -222,3 +222,21 @@ func (h *FileHandler) DownloadPublic(c *gin.Context) {
 
     c.File(file.StoragePath)
 }
+
+func (h *FileHandler) GetStorageStats(c *gin.Context) {
+    userID := c.GetUint("userID")
+
+    expected, actual, err := h.fileService.GetStorageStats(userID)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user storage"})
+        return
+    }
+
+    savings := expected - actual
+
+    c.JSON(http.StatusOK, gin.H{
+        "total_storage":      actual,
+        "original_storage":   expected,
+        "savings":            savings,
+    })
+}

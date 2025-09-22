@@ -146,12 +146,6 @@ func (fs *FileService) GetFilesByUser(userID uint) ([]models.UserFile, error) {
 }
 
 
-
-
-
-
-
-
 type FileFrontend struct {
 	ID            uint   `json:"id"`
 	FileID        uint   `json:"file_id"`
@@ -227,16 +221,6 @@ func (fs *FileService) ListFilesForFrontend(userID uint) ([]FileFrontend, error)
 
 	return result, nil
 }
-
-
-
-
-
-
-
-
-
-
 
 
 // GetFileForDownload retrieves file information for download
@@ -440,3 +424,11 @@ func (fs *FileService) GetFileByPublicToken(token string) (*models.File, error) 
     return file, nil
 }
 
+// file_service.go
+func (s *FileService) GetStorageStats(userID uint) (int64, int64, error) {
+    user, err := s.userRepo.GetByID(userID)
+    if err != nil {
+        return 0, 0, err
+    }
+    return user.ExpectedStorage, user.ActualStorage, nil
+}
