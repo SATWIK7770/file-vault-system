@@ -18,7 +18,7 @@ import (
 
 func main() {
 	if err := godotenv.Load("../../../.env"); err != nil {
-		log.Println("⚠️  No .env file found, falling back to system env vars")
+		log.Println("No .env file found, falling back to system env vars")
 	}
 
 	storageQuotaMB := os.Getenv("USER_STORAGE_QUOTA_MB")

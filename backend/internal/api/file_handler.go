@@ -69,20 +69,32 @@ func (h *FileHandler) Upload(c *gin.Context) {
 
 // ListFiles handles file listing requests
 func (h *FileHandler) ListFiles(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
+    userID, exists := c.Get("userID")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+        return
+    }
 
-	files, err := h.fileService.ListFilesForFrontend(userID.(uint))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list files"})
-		return
-	}
+    // Collect filters from query parameters
+    filters := map[string]string{
+        "filename":  c.Query("filename"),
+        "mimeType":  c.Query("mimeType"),
+        "uploader":  c.Query("uploader"),
+        "minSize":   c.Query("minSize"),
+        "maxSize":   c.Query("maxSize"),
+        "startDate": c.Query("startDate"),
+        "endDate":   c.Query("endDate"),
+    }
 
-	c.JSON(http.StatusOK, gin.H{"files": files})
+    files, err := h.fileService.ListFilesForFrontend(userID.(uint), filters)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list files"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"files": files})
 }
+
 
 
 // DownloadFile handles file download requests

@@ -3,7 +3,9 @@ package repository
 import (
     "backend/internal/models"  
     "gorm.io/gorm" 
-	"errors"           
+	"errors"      
+	"time"  
+	"strconv"   
 )
 
 type UserFileRepository struct {
@@ -12,6 +14,20 @@ type UserFileRepository struct {
 
 func NewUserFileRepository(db *gorm.DB) *UserFileRepository {
 	return &UserFileRepository{db: db}
+}
+
+type JoinedFileRow struct {
+    UserFileID    uint
+    FileID        uint
+    FileName      string
+    Size          int64
+    MimeType      string
+    UploaderName  string
+    UploadedAt    time.Time
+    Visibility    string
+    IsOwner       bool
+    DownloadTimes int
+    PublicToken   *string
 }
 
 func (r *UserFileRepository) UserHasFile(userID uint, hash string) (bool, error) {
@@ -99,4 +115,64 @@ func (r *UserFileRepository) DeleteUserFile(userID, fileID uint) error {
         return gorm.ErrRecordNotFound
     }
     return nil
+}
+
+// user_file_repository.go
+func (r *UserFileRepository) ListUserFilesWithFilters(userID uint, filters map[string]string) ([]JoinedFileRow, error) {
+    var rows []JoinedFileRow
+query := r.db.
+    Table("user_files AS uf").
+    Select(`uf.id AS user_file_id, 
+            f.id AS file_id, 
+            f.filename AS file_name, 
+            f.size, 
+            f.mime_type,
+            u.username AS uploader_name,
+            uf.uploaded_at, 
+            uf.visibility, 
+            uf.is_owner, 
+            uf.download_times, 
+            uf.public_token`).
+    Joins("JOIN files f ON f.id = uf.file_id").
+    Joins("JOIN users u ON u.id = uf.user_id").
+    Where("uf.user_id = ?", userID)
+
+    // Apply filters here as before
+    if v, ok := filters["filename"]; ok && v != "" {
+    query = query.Where("f.filename ILIKE ?", "%"+v+"%")
+}
+
+if v, ok := filters["mimeType"]; ok && v != "" {
+    query = query.Where("f.mime_type ?", "%"+v+"%") 
+}
+
+if v, ok := filters["uploader"]; ok && v != "" {
+    query = query.Where("owner.username ILIKE ?", "%"+v+"%") // match actual uploader
+}
+
+if v, ok := filters["minSize"]; ok && v != "" {
+    if minSize, err := strconv.ParseInt(v, 10, 64); err == nil {
+        query = query.Where("f.size >= ?", minSize)
+    }
+}
+
+if v, ok := filters["maxSize"]; ok && v != "" {
+    if maxSize, err := strconv.ParseInt(v, 10, 64); err == nil {
+        query = query.Where("f.size <= ?", maxSize)
+    }
+}
+
+if v, ok := filters["startDate"]; ok && v != "" {
+    query = query.Where("uf.uploaded_at >= ?", v)
+}
+
+if v, ok := filters["endDate"]; ok && v != "" {
+    query = query.Where("uf.uploaded_at <= ?", v)
+}
+
+if err := query.Scan(&rows).Error; err != nil {
+    return nil, err
+}
+
+    return rows, nil
 }

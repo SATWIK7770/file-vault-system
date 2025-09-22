@@ -2,44 +2,6 @@
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
 
 
-// import { getJSON, postJSON } from "./index";
-
-// export type FileMeta = {
-//   id: number;        // user_files.id (used for delete)
-//   file_id: number;   // files.id (used for download)
-//   filename: string;  // user_files.file_name (shown to user)
-// };
-
-// // list files
-// export async function listFiles(): Promise<{ files: FileMeta[] }> {
-//   return getJSON("/api/files");
-// }
-
-// // upload file
-// export async function uploadFile(file: File): Promise<FileMeta> {
-//   const formData = new FormData();
-//   formData.append("file", file);
-
-//   const res = await fetch(`${API_BASE}/api/upload`, {
-//     method: "POST",
-//     credentials: "include", // so JWT cookie is sent
-//     body: formData,
-//   });
-
-//   if (!res.ok) {
-//     const text = await res.text();
-//     throw new Error(text || "File upload failed");
-//   }
-
-//   return res.json();
-// }
-
-// // delete file
-// export async function deleteFile(fileId: number): Promise<{ success: boolean }> {
-//   return postJSON(`/api/files/${fileId}/delete`);
-// }
-
-
 export type FileMeta = {
   id: number;       // user_files.id
   file_id: number;  // reference to files.id
@@ -136,7 +98,7 @@ export async function toggleVisibility(fileID: number, isPublic: boolean): Promi
 
 export type FileFilter = {
   filename?: string;
-  mimeType?: string[];
+  mimeType?: string;
   minSize?: number; // in bytes
   maxSize?: number; // in bytes
   startDate?: string; 
@@ -153,7 +115,7 @@ export async function filterFiles(filters: FileFilter): Promise<{ files: FileMet
   const query = new URLSearchParams();
 
   if (filters.filename) query.append("filename", filters.filename);
-  if (filters.mimeType) query.append("mimeType", filters.mimeType.join(","));
+  if (filters.mimeType) query.append("mimeType", filters.mimeType);
   if (filters.minSize) query.append("minSize", filters.minSize.toString());
   if (filters.maxSize) query.append("maxSize", filters.maxSize.toString());
   if (filters.startDate) query.append("startDate", filters.startDate);

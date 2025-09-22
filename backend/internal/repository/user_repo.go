@@ -65,3 +65,12 @@ func (r *UserRepository) GetUserStorageUsed(userID uint) (int64, error) {
     }
     return user.ActualStorage, nil
 }
+
+
+func (r *UserRepository) UpdateUserStorage(userID uint, actualDelta int64, expectedDelta int64) error {
+    // Use GORM's Updates with expression to increment/decrement values
+    return r.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+        "actual_storage":      gorm.Expr("actual_storage + ?", actualDelta),
+        "expected_storage":  gorm.Expr("expected_storage + ?", expectedDelta),
+    }).Error
+}

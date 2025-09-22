@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"gorm.io/gorm"
 	"crypto/rand"
+	"time"
+
 )
 
 type FileService struct {
@@ -47,6 +49,17 @@ func NewFileService(
 		storageQuotaMB: quota,
     }
 }
+
+type FileFilter struct {
+    Filename string
+    MimeType string
+    Uploader string
+    MinSize  *int64
+    MaxSize  *int64
+    StartDate *time.Time
+    EndDate   *time.Time
+}
+
 
 
 // ProcessFileUpload handles the complete file upload business logic
@@ -167,62 +180,50 @@ type FileFrontend struct {
 	PublicLink string `json:"public_link,omitempty"`
 }
 
-func (fs *FileService) ListFilesForFrontend(userID uint) ([]FileFrontend, error) {
-	userFiles, err := fs.userFileRepo.GetUserFiles(userID)
-	if err != nil {
-		return nil, err
-	}
+func (fs *FileService) ListFilesForFrontend(userID uint, filters map[string]string) ([]FileFrontend, error) {
+    rows, err := fs.userFileRepo.ListUserFilesWithFilters(userID, filters)
+    if err != nil {
+        return nil, err
+    }
 
-	result := make([]FileFrontend, 0, len(userFiles))
+    result := make([]FileFrontend, 0, len(rows))
+    for _, r := range rows {
+        isPublic := "no"
+        showDownloadCount := false
+        publicLink := ""
+        if r.Visibility == "public" {
+            isPublic = "yes"
+            showDownloadCount = true
+            if r.PublicToken != nil {
+                publicLink = fmt.Sprintf("/public/%s", *r.PublicToken)
+            }
+        }
 
-	for _, uf := range userFiles {
-		file, err := fs.fileRepo.GetFileByID(uf.FileID)
-		if err != nil {
-			continue
-		}
+        f := FileFrontend{
+            ID:            r.UserFileID,
+            FileID:        r.FileID,
+            Filename:      r.FileName,
+            Size:          r.Size,
+            Uploader:      r.UploaderName,
+            UploadDate:    r.UploadedAt.Format("2006-01-02"),
+            IsPublic:      isPublic,
+            DownloadCount: nil,
+            PublicLink:    publicLink,
+        }
 
-		uploader := "exists in server"
-		if uf.IsOwner {
-			uploader = "you"
-		}
+        if showDownloadCount {
+            f.DownloadCount = &r.DownloadTimes
+        }
 
-		isPublic := "no"
-		showDownloadCount := false
-		publicLink := ""
-		if uf.Visibility == "public" {
-			isPublic = "yes"
-			showDownloadCount = true
-			if uf.PublicToken != nil {
-				publicLink = fmt.Sprintf("/public/%s", *uf.PublicToken)
-			}
-		}
+        f.Actions.CanDownload = true
+        f.Actions.CanMakePublic = r.IsOwner
+        f.Actions.CanDelete = true
+        f.Actions.ShowDownloadCount = showDownloadCount
 
-		var downloadCount *int
-		if showDownloadCount {
-			downloadCount = &uf.DownloadTimes
-		}
+        result = append(result, f)
+    }
 
-		f := FileFrontend{
-			ID:            uf.ID,
-			FileID:        uf.FileID,
-			Filename:      uf.FileName,
-			Size:          file.Size,
-			Uploader:      uploader,
-			UploadDate:    uf.UploadedAt.Format("2006-01-02"),
-			IsPublic:      isPublic,
-			DownloadCount: downloadCount,
-			PublicLink:    publicLink,
-		}
-
-		f.Actions.CanDownload = true
-		f.Actions.CanMakePublic = uf.IsOwner
-		f.Actions.CanDelete = true
-		f.Actions.ShowDownloadCount = showDownloadCount
-
-		result = append(result, f)
-	}
-
-	return result, nil
+    return result, nil
 }
 
 
@@ -319,7 +320,7 @@ func (fs *FileService) saveFileToDisk(file multipart.File, storagePath string) e
 
 //
 func (fs *FileService) DeleteFile(userfileID, userID uint) error {
-    // Step 1: Fetch user_file entry to get file_id
+    // Step 1: Fetch user_file entry to get file_id and ownership
     userFile, err := fs.userFileRepo.GetUserFileByID(userfileID, userID)
     if err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -328,6 +329,27 @@ func (fs *FileService) DeleteFile(userfileID, userID uint) error {
         return errors.New("failed to find user file relation")
     }
     fileID := userFile.FileID
+    isOwner := userFile.IsOwner
+
+    // Step 1b: Fetch file metadata to get size
+    file, err := fs.fileRepo.GetFileByID(fileID)
+    if err != nil {
+        return errors.New("file metadata not found")
+    }
+    fileSize := file.Size
+
+    // Step 1c: Update user storage
+    if isOwner {
+        // Subtract from both actual and expected storage
+        if err := fs.userRepo.UpdateUserStorage(userID, -fileSize, -fileSize); err != nil {
+            return errors.New("failed to update user storage")
+        }
+    } else {
+        // Subtract only from expected storage
+        if err := fs.userRepo.UpdateUserStorage(userID, 0, -fileSize); err != nil {
+            return errors.New("failed to update user expected storage")
+        }
+    }
 
     // Step 2: Delete user <-> file relation
     if err := fs.userFileRepo.DeleteUserFile(userID, fileID); err != nil {
@@ -335,29 +357,21 @@ func (fs *FileService) DeleteFile(userfileID, userID uint) error {
     }
 
     // Step 3: Check remaining references
-	count, err := fs.userFileRepo.CountFileReferences(fileID)
-	if err != nil {
-		return errors.New("failed to check file references")
-	}
+    count, err := fs.userFileRepo.CountFileReferences(fileID)
+    if err != nil {
+        return errors.New("failed to check file references")
+    }
 
-	// Step 3b: Update reference count in files table
-	if err := fs.fileRepo.UpdateReferenceCount(fileID, count); err != nil {
-		return errors.New("failed to update file reference count")
-	}
+    // Step 3b: Update reference count in files table
+    if err := fs.fileRepo.UpdateReferenceCount(fileID, count); err != nil {
+        return errors.New("failed to update file reference count")
+    }
 
+    // Step 4: If no references left, delete the file
     if count == 0 {
-        // Step 4: Get file metadata
-        file, err := fs.fileRepo.GetFileByID(fileID)
-        if err != nil {
-            return errors.New("file metadata not found")
-        }
-
-        // Step 5: Delete file record
         if err := fs.fileRepo.DeleteFileRecord(fileID); err != nil {
             return errors.New("failed to delete file record")
         }
-
-        // Step 6: Delete file from disk
         if err := os.Remove(file.StoragePath); err != nil && !os.IsNotExist(err) {
             return fmt.Errorf("failed to delete file from disk: %w", err)
         }
@@ -365,6 +379,7 @@ func (fs *FileService) DeleteFile(userfileID, userID uint) error {
 
     return nil
 }
+
 
 
 func generatePublicToken() string {

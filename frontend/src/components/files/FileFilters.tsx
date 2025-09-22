@@ -19,7 +19,7 @@ export const FileFilters: React.FC<Props> = ({ onChange }) => {
     const filter: FileFilter = {};
 
     if (filename) filter.filename = filename;
-    if (mimeType) filter.mimeType = mimeType.split(",").map((m) => m.trim());
+    if (mimeType) filter.mimeType = mimeType;
     if (uploader) filter.uploader = uploader;
 
     if (minSize || maxSize) {
