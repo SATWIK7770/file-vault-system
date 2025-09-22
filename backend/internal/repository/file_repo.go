@@ -75,8 +75,7 @@ func (r *FileRepository) UserHasFile(userID uint, hash string) (bool, error) {
 }
 
 // CreateUserReference creates a UserFile relationship for deduplication
-// This increments the refCount of the existing file
-func (r *FileRepository) CreateUserReference(userID uint, existingFile *models.File, filename  string) (*models.UserFile, error) {
+func (r *FileRepository) CreateUserReference(userID uint, existingFile *models.File, filename  string, ownership bool) (*models.UserFile, error) {
 	// Create UserFile relationship
 	userFile := &models.UserFile{
 		UserID: userID,
@@ -84,6 +83,7 @@ func (r *FileRepository) CreateUserReference(userID uint, existingFile *models.F
 		FileName : filename,
 		UploadedAt : time.Now(),
 		DownloadTimes : 0,
+		IsOwner : ownership,
 	}
 
 
@@ -117,35 +117,15 @@ func (r *FileRepository) GetFileByID(fileID uint) (*models.File, error) {
 	return &file, nil
 }
 
-func (r *FileRepository) GetUserFileByID(userfileID, userID uint) (*models.UserFile, error) {
-    var uf models.UserFile
-    if err := r.db.Where("id = ? AND user_id = ?", userfileID, userID).First(&uf).Error; err != nil {
-        return nil, err
-    }
-    return &uf, nil
-}
-
-
-func (r *FileRepository) DeleteUserFile(userID, fileID uint) error {
-    res := r.db.Where("user_id = ? AND file_id = ?", userID, fileID).Delete(&models.UserFile{})
-    if res.Error != nil {
-        return res.Error
-    }
-    if res.RowsAffected == 0 {
-        return gorm.ErrRecordNotFound
-    }
-    return nil
-}
-
-func (r *FileRepository) CountFileReferences(fileID uint) (int64, error) {
-    var count int64
-    err := r.db.Model(&models.UserFile{}).Where("file_id = ?", fileID).Count(&count).Error
-    return count, err
-}
 
 func (r *FileRepository) DeleteFileRecord(fileID uint) error {
     return r.db.Where("id = ?", fileID).Delete(&models.File{}).Error
 }
+
+func (r *FileRepository) UpdateReferenceCount(fileID uint, count int64) error {
+    return r.db.Model(&models.File{}).Where("id = ?", fileID).Update("ref_count", count).Error
+}
+
 
 
 // // GetFileStats returns statistics about files in the system

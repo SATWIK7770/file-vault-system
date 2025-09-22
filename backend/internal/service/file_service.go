@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"gorm.io/gorm"
+	"crypto/rand"
 )
 
 type FileService struct {
@@ -87,7 +88,7 @@ func (fs *FileService) ProcessFileUpload(userID uint, fileHeader *multipart.File
 	existingFile, err := fs.fileRepo.GetFileByHash(hash)
 	if err == nil && existingFile != nil {
 		// File exists globally, create user reference
-		userFile, err := fs.fileRepo.CreateUserReference(userID, existingFile , fileHeader.Filename);
+		userFile, err := fs.fileRepo.CreateUserReference(userID, existingFile , fileHeader.Filename, false);
 		if err != nil {
 			return nil, errors.New("failed to create file reference")
 		}
@@ -125,9 +126,8 @@ func (fs *FileService) ProcessFileUpload(userID uint, fileHeader *multipart.File
 	}
 
 	// Create the UserFile relationship
-	userFile, err := fs.fileRepo.CreateUserReference(userID, newFile , fileHeader.Filename);
+	userFile, err := fs.fileRepo.CreateUserReference(userID, newFile , fileHeader.Filename, true);
 	if err != nil {
-		// Clean up file and file record if UserFile creation fails
 		os.Remove(storagePath)
 		fs.fileRepo.DeleteFileRecord(newFile.ID) // Clean up the file record
 		return nil, errors.New("failed to create user file relationship")
@@ -145,6 +145,100 @@ func (fs *FileService) GetFilesByUser(userID uint) ([]models.UserFile, error) {
 
 }
 
+
+
+
+
+
+
+
+type FileFrontend struct {
+	ID            uint   `json:"id"`
+	FileID        uint   `json:"file_id"`
+	Filename      string `json:"filename"`
+	Size          int64  `json:"size"`
+	Uploader      string `json:"uploader"`
+	UploadDate    string `json:"upload_date"`
+	IsPublic      string `json:"public"` // "yes"/"no"
+	DownloadCount *int   `json:"downloads,omitempty"`
+	Actions       struct {
+		CanDownload     bool `json:"canDownload"`
+		CanMakePublic   bool `json:"canMakePublic"`
+		CanDelete       bool `json:"canDelete"`
+		ShowDownloadCount bool `json:"showDownloadCount"`
+	} `json:"actions"`
+	PublicLink string `json:"public_link,omitempty"`
+}
+
+func (fs *FileService) ListFilesForFrontend(userID uint) ([]FileFrontend, error) {
+	userFiles, err := fs.userFileRepo.GetUserFiles(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]FileFrontend, 0, len(userFiles))
+
+	for _, uf := range userFiles {
+		file, err := fs.fileRepo.GetFileByID(uf.FileID)
+		if err != nil {
+			continue
+		}
+
+		uploader := "exists in server"
+		if uf.IsOwner {
+			uploader = "you"
+		}
+
+		isPublic := "no"
+		showDownloadCount := false
+		publicLink := ""
+		if uf.Visibility == "public" {
+			isPublic = "yes"
+			showDownloadCount = true
+			if uf.PublicToken != nil {
+				publicLink = fmt.Sprintf("/public/%s", *uf.PublicToken)
+			}
+		}
+
+		var downloadCount *int
+		if showDownloadCount {
+			downloadCount = &uf.DownloadTimes
+		}
+
+		f := FileFrontend{
+			ID:            uf.ID,
+			FileID:        uf.FileID,
+			Filename:      uf.FileName,
+			Size:          file.Size,
+			Uploader:      uploader,
+			UploadDate:    uf.UploadedAt.Format("2006-01-02"),
+			IsPublic:      isPublic,
+			DownloadCount: downloadCount,
+			PublicLink:    publicLink,
+		}
+
+		f.Actions.CanDownload = true
+		f.Actions.CanMakePublic = uf.IsOwner
+		f.Actions.CanDelete = true
+		f.Actions.ShowDownloadCount = showDownloadCount
+
+		result = append(result, f)
+	}
+
+	return result, nil
+}
+
+
+
+
+
+
+
+
+
+
+
+
 // GetFileForDownload retrieves file information for download
 func (fs *FileService) GetFileForDownload(userID uint, fileID uint) (*models.File, error) {
 	file, err := fs.fileRepo.GetFileForDownload(userID, fileID)
@@ -160,8 +254,6 @@ func (fs *FileService) GetFileForDownload(userID uint, fileID uint) (*models.Fil
 	return file, nil
 }
 
-
-// Private helper methods
 
 func (fs *FileService) validateFileSize(size int64) error {
 	if fs.config.MaxFileSize > 0 && size > fs.config.MaxFileSize {
@@ -241,7 +333,7 @@ func (fs *FileService) saveFileToDisk(file multipart.File, storagePath string) e
 //
 func (fs *FileService) DeleteFile(userfileID, userID uint) error {
     // Step 1: Fetch user_file entry to get file_id
-    userFile, err := fs.fileRepo.GetUserFileByID(userfileID, userID)
+    userFile, err := fs.userFileRepo.GetUserFileByID(userfileID, userID)
     if err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             return errors.New("file not found")
@@ -251,15 +343,20 @@ func (fs *FileService) DeleteFile(userfileID, userID uint) error {
     fileID := userFile.FileID
 
     // Step 2: Delete user <-> file relation
-    if err := fs.fileRepo.DeleteUserFile(userID, fileID); err != nil {
+    if err := fs.userFileRepo.DeleteUserFile(userID, fileID); err != nil {
         return errors.New("failed to delete file relationship")
     }
 
     // Step 3: Check remaining references
-    count, err := fs.fileRepo.CountFileReferences(fileID)
-    if err != nil {
-        return errors.New("failed to check file references")
-    }
+	count, err := fs.userFileRepo.CountFileReferences(fileID)
+	if err != nil {
+		return errors.New("failed to check file references")
+	}
+
+	// Step 3b: Update reference count in files table
+	if err := fs.fileRepo.UpdateReferenceCount(fileID, count); err != nil {
+		return errors.New("failed to update file reference count")
+	}
 
     if count == 0 {
         // Step 4: Get file metadata
@@ -280,5 +377,66 @@ func (fs *FileService) DeleteFile(userfileID, userID uint) error {
     }
 
     return nil
+}
+
+
+func generatePublicToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// Change file visibility; only owner allowed
+func (fs *FileService) ChangeVisibility(userID, userfileID uint, makePublic bool) (*models.UserFile, error) {
+	uf, err := fs.userFileRepo.GetOwnerUserFile(userID, userfileID)
+	if err != nil {
+		return nil, err
+	}
+
+	var token *string
+	if makePublic {
+		t := generatePublicToken()
+		token = &t
+	}
+
+	visibility := "private"
+	if makePublic {
+		visibility = "public"
+	}
+
+	if err := fs.userFileRepo.UpdateVisibility(uf, visibility, token); err != nil {
+		return nil, err
+	}
+
+	updated, err := fs.userFileRepo.GetOwnerUserFile(userID, userfileID)
+	if err != nil {
+    return nil, err
+	}
+
+	return updated, nil
+}
+
+
+// It validates that the token exists and the file is still public.
+func (fs *FileService) GetFileByPublicToken(token string) (*models.File, error) {
+    // Step 1: Lookup user_files entry via repository
+    uf, err := fs.userFileRepo.GetByPublicToken(token)
+    if err != nil {
+        return nil , errors.New("link invalid or file private")
+    }
+
+    // Step 2: Increment download counter for analytics
+    if err := fs.userFileRepo.IncrementDownloadTimes(uf); err != nil {
+        // log error but still continue to serve the file
+        fmt.Printf("Warning: failed to increment download count: %v\n", err)
+    }
+
+    // Step 3: Fetch actual file info from files table via repository
+    file, err := fs.fileRepo.GetFileByID(uf.FileID)
+    if err != nil {
+        return nil , errors.New("file metadata not found")
+    }
+
+    return file, nil
 }
 

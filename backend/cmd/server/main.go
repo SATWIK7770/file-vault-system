@@ -48,7 +48,7 @@ func main() {
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{frontendOrigin}, 
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Content-Type"},
 		AllowCredentials: true, 
 	}))
@@ -60,6 +60,7 @@ func main() {
 		apiRoutes.POST("/signup", authHandler.SignUp)
 		apiRoutes.POST("/login", authHandler.SignIn)
 		apiRoutes.POST("/logout", authHandler.SignOut)
+		apiRoutes.GET("/public/:token", fileHandler.DownloadPublic)
 
 		// Protected routes (require auth)
 		protected := apiRoutes.Group("/")
@@ -72,6 +73,7 @@ func main() {
 			protected.GET("/files", fileHandler.ListFiles)
 			protected.GET("/files/:id/download", fileHandler.DownloadFile)
 			protected.POST("/files/:id/delete", fileHandler.DeleteFile)
+			protected.PATCH("/files/:id/visibility", fileHandler.ChangeVisibility)
 		}
 	}
 

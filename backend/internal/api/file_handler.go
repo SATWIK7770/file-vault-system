@@ -4,6 +4,8 @@ import (
 	"backend/internal/service"
 	"net/http"
 	"strconv"
+	"fmt"
+	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,25 +64,21 @@ func (h *FileHandler) Upload(c *gin.Context) {
 
 // ListFiles handles file listing requests
 func (h *FileHandler) ListFiles(c *gin.Context) {
-	userID := c.GetUint("userID")
-
-	files, err := h.fileService.GetFilesByUser(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve files"})
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	simplified := make([]gin.H, 0, len(files))
-	for _, f := range files {
-		simplified = append(simplified, gin.H{
-			"id":       f.ID,
-			"file_id":  f.FileID,
-			"filename": f.FileName,
-		})
+	files, err := h.fileService.ListFilesForFrontend(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list files"})
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"files": simplified})
+	c.JSON(http.StatusOK, gin.H{"files": files})
 }
+
 
 // DownloadFile handles file download requests
 func (h *FileHandler) DownloadFile(c *gin.Context) {
@@ -150,4 +148,77 @@ func (h *FileHandler) DeleteFile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "File deleted successfully"})
+}
+
+
+func (h *FileHandler) ChangeVisibility(c *gin.Context) {
+	fileIDStr := c.Param("id")
+	fileID64, err := strconv.ParseUint(fileIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file id"})
+		return
+	}
+	userfileID := uint(fileID64)
+
+	userID := c.GetUint("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
+		return
+	}
+
+	makePublicStr := c.Query("make_public")
+	makePublic := makePublicStr == "true"
+
+	log.Printf("Request body: make_public=%v", makePublic)
+
+	uf, err := h.fileService.ChangeVisibility(userID, userfileID, makePublic)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	publicLink := ""
+	if uf.Visibility == "public" && uf.PublicToken != nil {
+		publicLink = "/download/" + *uf.PublicToken
+	}
+
+	response := gin.H{
+        "file_id":     uf.ID,
+        "visibility":  uf.Visibility,
+        "public_link": publicLink,
+    }
+    log.Printf("Response: %+v", response)
+
+	c.JSON(http.StatusOK, gin.H{
+		"file_id":     uf.ID,
+		"visibility":  uf.Visibility,
+		"public_link": publicLink,
+	})
+}
+
+func (h *FileHandler) DownloadPublic(c *gin.Context) {
+    token := c.Param("token")
+    if token == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "missing token"})
+        return
+    }
+
+    // Get both file metadata and user_file info
+    file , err := h.fileService.GetFileByPublicToken(token)
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+        return
+    }
+
+	fmt.Printf("DEBUG: Serving file from disk path: %s\n", file.StoragePath)
+
+    // Serve file using user-specific filename
+    c.Header("Content-Description", "File Transfer")
+    c.Header("Content-Disposition", "attachment; filename=\""+file.Filename+"\"")
+    c.Header("Content-Type", file.MimeType)
+    c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+    c.Header("Pragma", "no-cache")
+    c.Header("Expires", "0")
+
+    c.File(file.StoragePath)
 }
