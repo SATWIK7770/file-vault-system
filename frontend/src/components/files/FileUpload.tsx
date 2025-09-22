@@ -35,7 +35,7 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
       // Reset after upload
       setSelectedFiles([]);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // ✅ clears file input
+        fileInputRef.current.value = "";
       }
     } catch (e: any) {
       setErr(e.message || "Upload failed");
@@ -55,7 +55,7 @@ export const FileUpload: React.FC<Props> = ({ onUploaded }) => {
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       addFiles(Array.from(e.target.files));
-      e.target.value = ""; // ✅ allows reselecting same file
+      e.target.value = ""; 
     }
   };
 

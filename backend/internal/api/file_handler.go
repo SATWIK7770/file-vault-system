@@ -2,7 +2,6 @@ package api
 
 import (
 	"backend/internal/service"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -13,8 +12,6 @@ type FileHandler struct {
 	fileService *service.FileService
 }
 
-// NewFileHandler creates a new file handler
-// Handler should only depend on service, not repository directly
 func NewFileHandler(fs *service.FileService) *FileHandler {
 	return &FileHandler{
 		fileService: fs,
@@ -22,53 +19,21 @@ func NewFileHandler(fs *service.FileService) *FileHandler {
 }
 
 // Upload handles file upload requests
-// Responsibility: HTTP request/response handling only
 func (h *FileHandler) Upload(c *gin.Context) {
-	// 1. Extract user ID from context
 	userID := c.GetUint("userID")
-	fmt.Printf("handler: File:%d", userID)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	// 2. Get uploaded file from request
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no file provided"})
 		return
 	}
 
-	// 3. Delegate all business logic to service layer
 	result, err := h.fileService.ProcessFileUpload(userID, fileHeader)
 	if err != nil {
-<<<<<<< HEAD
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open file"})
-		return
-	}
-	defer src.Close()
-
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, src); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash file"})
-		return
-	}
-	hash := hex.EncodeToString(hasher.Sum(nil))
-
-	savedFile, err := h.fileService.SaveFile(userID, file, storagePath, hash, time.Now())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db save failed"})
-		return
-	}
-
-	if err := c.SaveUploadedFile(file, storagePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file"})
-		return
-	}
-
-	c.JSON(http.StatusOK, savedFile)
-=======
-		// Handle different types of service errors with proper status codes
 		switch err.Error() {
 		case "mime mismatch":
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File type validation failed"})
@@ -88,73 +53,37 @@ func (h *FileHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	// 4. Return success response with proper structure
-   c.JSON(http.StatusOK, gin.H{
-    "id":       result.ID,       // user_files.id
-    "file_id":  result.FileID,   // files.id
-    "filename": result.FileName, // user_files.file_name
+	c.JSON(http.StatusOK, gin.H{
+		"id":       result.ID,
+		"file_id":  result.FileID,
+		"filename": result.FileName,
 	})
->>>>>>> aee3e54 (implemented deduplication of files , mime validation , deletion of files)
 }
 
 // ListFiles handles file listing requests
 func (h *FileHandler) ListFiles(c *gin.Context) {
-    userID := c.GetUint("userID")
+	userID := c.GetUint("userID")
 
-<<<<<<< HEAD
 	files, err := h.fileService.GetFilesByUser(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve files"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"files": files})
-}
-
-// GET /api/files/:id/download
-func (h *FileHandler) DownloadFile(c *gin.Context) {
-
-	userID := c.GetUint("userID")
-	fileIDstr := c.Param("id")
-
-    fileID64, err := strconv.ParseUint(fileIDstr, 10, 64)
-=======
-    files, err := h.fileService.GetFilesByUser(userID)
->>>>>>> aee3e54 (implemented deduplication of files , mime validation , deletion of files)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve files"})
-        return
-    }
-
-<<<<<<< HEAD
-	file, err := h.fileRepo.GetFileForDownload(userID , fileID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
-		return
+	simplified := make([]gin.H, 0, len(files))
+	for _, f := range files {
+		simplified = append(simplified, gin.H{
+			"id":       f.ID,
+			"file_id":  f.FileID,
+			"filename": f.FileName,
+		})
 	}
 
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Disposition", "attachment; filename="+filepath.Base(file.Filename))
-	c.Header("Content-Type", "application/octet-stream")
-
-	c.File(file.StoragePath)
-=======
-    // Return only id + filename for frontend
-    simplified := make([]gin.H, 0, len(files))
-    for _, f := range files {
-        simplified = append(simplified, gin.H{
-        "id":        f.ID,        // UserFile row id (unique per user)
-        "file_id":   f.FileID,    // reference to File
-        "filename":  f.FileName,
-        })
-    }
-
-    c.JSON(http.StatusOK, gin.H{"files": simplified})
+	c.JSON(http.StatusOK, gin.H{"files": simplified})
 }
 
 // DownloadFile handles file download requests
 func (h *FileHandler) DownloadFile(c *gin.Context) {
-	// 1. Extract parameters
 	userID := c.GetUint("userID")
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -169,7 +98,6 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 	}
 	fileID := uint(fileID64)
 
-	// 2. Get file info from service
 	fileInfo, err := h.fileService.GetFileForDownload(userID, fileID)
 	if err != nil {
 		switch err.Error() {
@@ -183,15 +111,13 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 		return
 	}
 
-	// 3. Set appropriate headers and serve file
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Disposition", "attachment; filename=\""+fileInfo.Filename+"\"")
 	c.Header("Content-Type", fileInfo.MimeType)
-	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-    c.Header("Pragma", "no-cache")
-    c.Header("Expires", "0")
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")	//avoid browser caching
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 	c.File(fileInfo.StoragePath)
->>>>>>> aee3e54 (implemented deduplication of files , mime validation , deletion of files)
 }
 
 // DeleteFile handles file deletion requests

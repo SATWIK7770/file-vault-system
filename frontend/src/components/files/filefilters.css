@@ -1,0 +1,50 @@
+.filters-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.filters-container input {
+  flex: 1 1 180px;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+
+.range-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 250px;  
+}
+
+.range-group input {
+  flex: 1;
+}
+
+.filters-row select {
+  padding: 6px 10px;
+  padding-top: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: inherit;
+  font-size: 14px;       
+  line-height: 1.4;       
+  color: #333;             
+  height: 34px;            
+  box-sizing: border-box;  
+  appearance: none;        
+}
+
+.filters-row select {
+  background: inherit url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='gray'><polygon points='0,0 12,0 6,6'/></svg>") no-repeat right 10px center;
+  background-size: 12px;
+  padding-right: 28px; 
+}
+

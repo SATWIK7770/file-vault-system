@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import * as authApi from "../api/auth";
 
 export type User = {
@@ -46,19 +46,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refresh(); // check session on mount
   }, []);
 
-  // ---- login ----
+  //login
   const login = async (username: string, password: string) => {
     await authApi.apiLogin({ username, password }); // sets cookie
     await refresh();
   };
 
-  // ---- signup ----
+
   const signup = async (username: string, email: string, password: string) => {
     await authApi.apiSignup({ username, email, password }); // sets cookie
     await refresh();
   };
 
-  // ---- logout ----
+
   const logout = async () => {
     try {
       await authApi.apiLogout(); // clears cookie

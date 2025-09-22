@@ -16,7 +16,6 @@ export async function postJSON(path: string, body?: unknown) {
     credentials: "include", 
   };
 
-  // ✅ Only add headers/body if body is provided
   if (body !== undefined) {
     opts.headers = { "Content-Type": "application/json" };
     opts.body = JSON.stringify(body);
