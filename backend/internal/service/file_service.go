@@ -22,6 +22,7 @@ type FileService struct {
     userFileRepo *repository.UserFileRepository
     userRepo     *repository.UserRepository   
     config       FileConfig
+	storageQuotaMB int64
 }
 
 
@@ -36,12 +37,14 @@ func NewFileService(
     userFileRepo *repository.UserFileRepository,
     userRepo *repository.UserRepository,
     config FileConfig,
+	quota int64,
 ) *FileService {
     return &FileService{
         fileRepo:     fileRepo,
         userFileRepo: userFileRepo,
         userRepo:     userRepo,
         config:       config,
+		storageQuotaMB: quota,
     }
 }
 
@@ -431,4 +434,22 @@ func (s *FileService) GetStorageStats(userID uint) (int64, int64, error) {
         return 0, 0, err
     }
     return user.ExpectedStorage, user.ActualStorage, nil
+}
+
+
+func (fs *FileService) CheckStorageQuota(userID uint, newFileSize int64) error {
+    // Get used storage from user table
+    used, err := fs.userRepo.GetUserStorageUsed(userID)
+    if err != nil {
+        return err
+    }
+
+    // Convert quota from MB (env) to bytes
+    quotaBytes := fs.storageQuotaMB * 1024 * 1024
+
+    if used+newFileSize > quotaBytes {
+        return fmt.Errorf("storage quota exceeded: %d/%d bytes used", used, quotaBytes)
+    }
+
+    return nil
 }

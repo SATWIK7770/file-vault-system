@@ -34,6 +34,11 @@ func (h *FileHandler) Upload(c *gin.Context) {
 		return
 	}
 
+    if err := h.fileService.CheckStorageQuota(userID, fileHeader.Size); err != nil {
+        c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+        return
+    }
+
 	result, err := h.fileService.ProcessFileUpload(userID, fileHeader)
 	if err != nil {
 		switch err.Error() {

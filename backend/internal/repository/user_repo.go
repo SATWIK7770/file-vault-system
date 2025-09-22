@@ -3,6 +3,7 @@ package repository
 import (
 	"backend/internal/models"
 	"gorm.io/gorm"
+	"errors"
 )
 
 type UserRepository struct {
@@ -51,4 +52,16 @@ func (r *UserRepository) IncrementActualStorage(userID uint, size int64) error {
     return r.db.Model(&models.User{}).
         Where("id = ?", userID).
         Update("actual_storage", gorm.Expr("actual_storage + ?", size)).Error
+}
+
+
+func (r *UserRepository) GetUserStorageUsed(userID uint) (int64, error) {
+    var user models.User
+    if err := r.db.Select("actual_storage").First(&user, userID).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return 0, errors.New("user not found")
+        }
+        return 0, err
+    }
+    return user.ActualStorage, nil
 }

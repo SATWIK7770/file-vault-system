@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,11 @@ func main() {
 		log.Println("⚠️  No .env file found, falling back to system env vars")
 	}
 
+	storageQuotaMB := os.Getenv("USER_STORAGE_QUOTA_MB")
+	api_limit := os.Getenv("API_RATE_LIMIT")
+	quota, _ := strconv.ParseInt(storageQuotaMB, 10, 64)
+	limit,_ := strconv.ParseInt(api_limit , 10, 64)
+
 	conn, err := db.NewPostgresDB()
 	if err != nil {
 		log.Fatal("Failed to connect to DB:", err)
@@ -31,7 +37,6 @@ func main() {
 	authHandler := api.NewAuthHandler(authService)
 
 	fileConfig := service.FileConfig{
-    MaxFileSize:  10 * 1024 * 1024, // 10MB limit
     UploadDir:    "uploads",         // Directory to store files
     AllowedTypes: []string{},	     // Optional: restrict file types
 	}
@@ -40,8 +45,9 @@ func main() {
 	//File setup
 	userFileRepo := repository.NewUserFileRepository(conn)
 	fileRepo := repository.NewFileRepository(conn)
-	fileService := service.NewFileService(fileRepo, userFileRepo, userRepo, fileConfig)
+	fileService := service.NewFileService(fileRepo, userFileRepo, userRepo, fileConfig,quota)
 	fileHandler := api.NewFileHandler(fileService)
+	rateLimiter := api.NewRateLimiter(int(limit))
 
 	r := gin.Default()
 
@@ -64,7 +70,7 @@ func main() {
 
 		// Protected routes (require auth)
 		protected := apiRoutes.Group("/")
-		protected.Use(api.AuthMiddleware())
+		protected.Use(api.AuthMiddleware() , rateLimiter.RateMiddleware())
 		{
 			protected.GET("/me", authHandler.Me)
 
