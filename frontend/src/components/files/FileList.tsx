@@ -45,9 +45,8 @@ export const FileList: React.FC<Props> = ({ files, onDeleted, onUpdated, canDele
             <th className="border p-2 w-1/10">Upload Date</th>
             <th className="border p-2 w-1/12">Public</th>
             <th className="border p-2 w-1/12">Downloads</th>
-            <th className="border p-2 w-1/12">Dedup Refs</th>
-            <th className="border p-2 w-1/6">Tags</th>
             <th className="border p-2 w-1/6">Actions</th>
+            <th className="border p-2 w-1/6">Public Link</th>
           </tr>
         </thead>
         <tbody>
@@ -59,14 +58,23 @@ export const FileList: React.FC<Props> = ({ files, onDeleted, onUpdated, canDele
               <td className="border p-2">{f.uploadDate ? new Date(f.uploadDate).toLocaleDateString() : "-"}</td>
               <td className="border p-2">{f.isPublic ? "Yes" : "No"}</td>
               <td className="border p-2">{f.downloadCount ?? "-"}</td>
-              <td className="border p-2">{f.dedupRefCount ?? "-"}</td>
-              <td className="border p-2">{f.tags?.join(", ") || "-"}</td>
               <td className="border p-2 space-x-2">
-                <a href={`${API_BASE}/api/files/${f.file_id}/download`} className="text-blue-600 text-xs px-2 py-1 border rounded">
-                  Download
-                </a>
-                <button onClick={() => handleToggleVisibility(f)} className="text-white bg-blue-600 text-xs px-2 py-1 border rounded">
-                {f.isPublic ? "Make Private" : "Make Public"} </button>
+                {f.canDownload && (
+                  <a
+                    href={`${API_BASE}/api/files/${f.file_id}/download`}
+                    className="text-blue-600 text-xs px-2 py-1 border rounded"
+                  >
+                    Download
+                  </a>
+                )}
+                {f.canMakePublic && (
+                  <button
+                    onClick={() => handleToggleVisibility(f)}
+                    className="text-white bg-blue-600 text-xs px-2 py-1 border rounded"
+                  >
+                    {f.isPublic ? "Make Private" : "Make Public"}
+                  </button>
+                )}
                 {f.canDelete && (
                   <button
                     onClick={() => handleDelete(f)}
@@ -75,6 +83,11 @@ export const FileList: React.FC<Props> = ({ files, onDeleted, onUpdated, canDele
                     Delete
                   </button>
                 )}
+              </td>
+
+              <td className="border p-2"> {f.publicLink ? (<a href={`${API_BASE}/api${f.publicLink}`} target="_blank" rel="noreferrer" className="text-blue-600 text-xs">
+              {f.publicLink}
+              </a>) : "-"}
               </td>
             </tr>
           ))}

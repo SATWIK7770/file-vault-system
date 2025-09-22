@@ -99,17 +99,21 @@ const Dashboard: React.FC = () => {
   const [filters, setFilters] = useState<FileFilter>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchFiles() {
-      try {
-        const res = await listFiles();
-        setFiles(res.files);
-      } catch (err) {
-        console.error("Failed to fetch files:", err);
-      } finally {
-        setLoading(false);
-      }
+  // Centralized fetch function
+  const fetchFiles = async () => {
+    setLoading(true);
+    try {
+      const res = await listFiles();
+      setFiles(res.files);
+    } catch (err) {
+      console.error("Failed to fetch files:", err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Initial fetch
+  useEffect(() => {
     fetchFiles();
   }, []);
 
@@ -135,7 +139,6 @@ const Dashboard: React.FC = () => {
   );
   const storageSaved = totalOriginal - totalDeduped;
   const storageSavedPercent = totalOriginal ? (storageSaved / totalOriginal) * 100 : 0;
-
 
   return (
     <div className="dashboard">
@@ -164,23 +167,23 @@ const Dashboard: React.FC = () => {
           <p>Loading files...</p>
         ) : (
           <div className="overflow-x-auto w-full">
-      <FileList
-        files={filteredFiles}
-        onDeleted={(id) => setFiles((prev) => prev.filter((f) => f.id !== id))}
-        onUpdated={(updated) =>
-          setFiles((prev) => prev.map((f) => (f.id === updated.id ? updated : f)))
-        }
-      />
-    </div>
+            <FileList
+              files={filteredFiles}
+              // Refresh entire file list after any operation
+              onDeleted={async () => await fetchFiles()}
+              onUpdated={async () => await fetchFiles()}
+            />
+          </div>
         )}
       </section>
 
       <section>
         <h2>Upload New Files</h2>
-        <FileUpload onUploaded={(file) => setFiles((prev) => [...prev, file])} />
+        <FileUpload onUploaded={async () => await fetchFiles()} />
       </section>
     </div>
   );
 };
 
 export default Dashboard;
+
